@@ -12,7 +12,7 @@ from scipy.linalg import eigh
 plt.style.use('dark_background')
 
 st.title("ISC Playground")
-st.subheader("Updated 2025-02-05 14:52")
+st.subheader("Updated 2025-02-05 16:26")
 st.link_button("Source code", "https://github.com/zeyus/isc-playground")
 
 config_defaults = {
@@ -668,7 +668,6 @@ if W is not None and ISC_overall is not None:
         f"C{i + 1}": [v] for i,v in enumerate(ISC_overall)
 
     }
-    print(df)
     st.dataframe(df)
     filter_weight_tab, isc_summary_tab, isc_time_tab = st.tabs(["Filter weights", "ISC summary", "ISC over time"])
     with filter_weight_tab:
