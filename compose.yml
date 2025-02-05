@@ -20,3 +20,4 @@ services:
         # Rebuild the image if dependencies change by checking uv.lock
         - action: rebuild
           path: ./uv.lock
+    restart: unless-stopped
