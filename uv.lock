@@ -193,6 +193,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "matplotlib" },
     { name = "mpld3" },
+    { name = "networkx" },
     { name = "numpy" },
     { name = "pyarrow" },
     { name = "scipy" },
@@ -204,6 +205,7 @@ dependencies = [
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.0" },
     { name = "mpld3", specifier = ">=0.5.10" },
+    { name = "networkx", specifier = ">=3.4.2" },
     { name = "numpy", specifier = ">=2.2.2" },
     { name = "pyarrow", specifier = ">=19.0.0" },
     { name = "scipy", specifier = ">=1.15.1" },
@@ -386,6 +388,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b5/bc/a68ccd9619518bd49bc27665b34aec3a308f717647802ee9f55f9493a212/narwhals-1.25.1.tar.gz", hash = "sha256:9c0e27be46e186526878286b442a3dd2ee9fe723456457feff42316288732b96", size = 247291 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a8/e3/74722453c3fc4fc3e1c135050db2f302abe85942e054261931a6bda23727/narwhals-1.25.1-py3-none-any.whl", hash = "sha256:a1838f2725523da54c093849e93a8b2a57d2310f0bbc26be35d223f5eef60417", size = 305590 },
+]
+
+[[package]]
+name = "networkx"
+version = "3.4.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/1d/06475e1cd5264c0b870ea2cc6fdb3e37177c1e565c43f56ff17a10e3937f/networkx-3.4.2.tar.gz", hash = "sha256:307c3669428c5362aab27c8a1260aa8f47c4e91d3891f48be0141738d8d053e1", size = 2151368 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl", hash = "sha256:df5d4365b724cf81b8c6a7312509d0c22386097011ad1abe274afd5e9d3bbc5f", size = 1723263 },
 ]
 
 [[package]]
