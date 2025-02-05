@@ -1,0 +1,14 @@
+[project]
+name = "isc-playground"
+version = "0.1.0"
+description = "Try out inter-subject correlation for fun and profit"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.0",
+    "mpld3>=0.5.10",
+    "numpy>=2.2.2",
+    "scipy>=1.15.1",
+    "seaborn>=0.13.2",
+    "streamlit>=1.42.0",
+]

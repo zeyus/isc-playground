@@ -6,8 +6,10 @@ import seaborn as sns
 from scipy.linalg import eigh
 from timeit import default_timer
 
-
 st.title('ISC Playground')
+st.subheader('Updated 2025-02-05 10:37')
+st.link_button('Source code', 'https://github.com/zeyus/isc-playground')
+
 
 if 'conditions' not in st.session_state:
     st.session_state.conditions = ['all']
@@ -99,8 +101,6 @@ with st.sidebar:
                     else:    
                         st.checkbox(f'subject {i}', key=f'subj-{i}-{cond}')
 
-
-        
 
 
 # generate data
