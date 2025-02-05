@@ -49,7 +49,7 @@ docker-compose -f ./compose.yml down
 
 ## Usage
 
-After you start the app (either with uv or docker-compose), you can visit your browser at `http://localhost:8501` to interact with the app.
+After you start the app (either with uv or docker-compose), you can visit your browser at `http://localhost:8501/isc/` to interact with the app (using uv should automatically open your browser).
 
 
 
