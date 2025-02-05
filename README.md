@@ -2,6 +2,8 @@
 
 An interactive [streamlit](https://streamlit.io/) app to play with Inter-Subject Correlation (ISC) analysis[^1].
 
+![ISC Playground](./web-ui.png)
+
 ## Installation
 
 First, clone this repository:
@@ -10,8 +12,6 @@ First, clone this repository:
 git clone https://github.com/zeyus/isc-playground.git
 cd isc-playground
 ```
-
-![ISC Playground](./web-ui.png)
 
 
 ### using uv
