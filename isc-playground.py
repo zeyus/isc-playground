@@ -9,7 +9,7 @@ from timeit import default_timer
 # import mpld3
 # import streamlit.components.v1 as components
 # sns.set_palette('coolwarm')
-
+plt.style.use('dark_background')
 
 st.title("ISC Playground")
 st.subheader("Updated 2025-02-05 10:37")

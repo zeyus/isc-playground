@@ -25,4 +25,4 @@ HEALTHCHECK CMD curl --fail http://localhost:8501/isc/_stcore/health
 
 ENTRYPOINT []
 
-CMD ["uv", "run", "streamlit", "run", "isc-playground.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.baseUrlPath=isc"]
+CMD ["uv", "run", "--", "streamlit", "run", "isc-playground.py", "--server.port=8501", "--server.address=0.0.0.0"]

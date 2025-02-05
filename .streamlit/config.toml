@@ -1,0 +1,8 @@
+[server]
+runOnSave = true
+baseUrlPath = "isc"
+folderWatchBlacklist = ['.venv', '.git', '.vscode', '__pycache__']
+[browser]
+gatherUsageStats = false
+[theme]
+base = "dark"
