@@ -16,6 +16,7 @@ services:
           # different platform in the container
           ignore:
             - .venv/
+            - watch.log
 
         # Rebuild the image if dependencies change by checking uv.lock
         - action: rebuild
