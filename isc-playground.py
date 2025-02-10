@@ -11,10 +11,10 @@ import networkx as nx
 # import mpld3
 # import streamlit.components.v1 as components
 # sns.set_palette('coolwarm')
-plt.style.use('dark_background')
+plt.style.use("dark_background")
 
 st.title("ISC Playground")
-st.subheader("Updated 2025-02-05 21:13")
+st.subheader("Updated 2025-02-10 16:10")
 st.link_button("Source code", "https://github.com/zeyus/isc-playground")
 
 config_defaults = {
@@ -59,7 +59,8 @@ with st.sidebar:
                         break
             for key, value in config_defaults.items():
                 st.session_state[key] = value
-    with st.expander("💻 Simulation parameters"):
+    with st.expander("💻 Simulation parameters", expanded=True):
+
         def remove_subject_from_groups():
             for cond in st.session_state.conditions:
                 for i in range(st.session_state.n_subj, 10):
@@ -67,6 +68,7 @@ with st.sidebar:
                         del st.session_state[f"subj-{i}-{cond}"]
                     else:
                         break
+
         st.session_state.n_subj = st.select_slider(
             "Number of subjects",
             options=range(1, 11),
@@ -74,7 +76,9 @@ with st.sidebar:
             on_change=remove_subject_from_groups,
         )
         st.session_state.n_chan = st.select_slider(
-            "Number of data channels", options=range(1, 65), value=st.session_state.n_chan
+            "Number of data channels",
+            options=range(1, 65),
+            value=st.session_state.n_chan,
         )
         st.session_state.sample_rate = st.select_slider(
             "Sample rate (Hz)",
@@ -85,8 +89,7 @@ with st.sidebar:
             "Duration (seconds)", st.session_state.duration
         )
 
-        
-    with st.expander("📡 Signal parameters"):
+    with st.expander("📡 Signal parameters", expanded=True):
         # signal parameters
         st.session_state.signal_type = st.selectbox(
             "Signal type",
@@ -115,8 +118,8 @@ with st.sidebar:
             st.session_state.signal_noise = st.slider(
                 "Signal noise", min_value=0.0, max_value=0.9, value=0.01
             )
-        
-    with st.expander("🌀 Correlation parameters"):
+
+    with st.expander("🌀 Correlation parameters", expanded=True):
         # and of the signal, how many are correlated?
         corr_disabled = False
         if st.session_state.n_subj < 2:
@@ -130,7 +133,53 @@ with st.sidebar:
 
         # and of the correlated subjects, how many "spatial" groups?
         # this should somewhat translate into components in the ISC
-        
+        # these spatial groups are represented by the same channel index
+        # across the correlated subjects
+
+        # first a helper function to add or remove a group
+        def add_group(group: str):
+            st.session_state.correlated_channel_groups[group] = []
+
+        def remove_group(group: str):
+            del st.session_state.correlated_channel_groups[group]
+
+        # then the actual UI
+        st.subheader("Correlated channel groups")
+        # add button
+        col1, col2 = st.columns([4, 1], vertical_alignment="bottom")
+        new_group = ""
+        with col1:
+            new_group = st.text_input("New group name", key="new_group")
+        with col2:
+            st.button(
+                "",
+                key="add-group",
+                icon=":material/add:",
+                type="primary",
+                on_click=add_group,
+                args=(new_group,),
+            )
+        st.divider()
+        for group in st.session_state.correlated_channel_groups:
+            col1, col2 = st.columns([4, 1], vertical_alignment="center")
+            with col1:
+                st.write(f"{group}")
+            with col2:
+                st.button(
+                    "",
+                    key=f"del-{group}",
+                    icon=":material/delete:",
+                    type="primary",
+                    on_click=remove_group,
+                    args=(group,),
+                )
+            st.session_state.correlated_channel_groups[group] = st.multiselect(
+                "Channels",
+                key=f"channels-{group}",
+                options=range(1, st.session_state.n_chan + 1),
+                default=st.session_state.correlated_channel_groups[group],
+            )
+            st.divider()
 
         # correlation parameters
         st.session_state.correlation = st.slider(
@@ -139,8 +188,8 @@ with st.sidebar:
             max_value=1.0,
             value=st.session_state.correlation,
         )
-        
-    with st.expander("📊 Data Parameters"):
+
+    with st.expander("📊 Data Parameters", expanded=True):
         st.subheader("Conditions")
 
         def add_cond(cond: str):
@@ -206,81 +255,102 @@ with st.sidebar:
 
 # generate data
 @st.cache_data
-def generate_data(duration, n_subj, n_chan, sample_rate, n_correlated, signal_type, signal_freq, signal_amp, signal_phase, signal_noise, correlation):
-    time = np.arange(
-        0, int(duration) * sample_rate, 1
-    )
+def generate_data(
+    duration,
+    n_subj,
+    n_chan,
+    sample_rate,
+    n_correlated,
+    signal_type,
+    signal_freq,
+    signal_amp,
+    signal_phase,
+    signal_noise,
+    correlation,
+    correlated_channel_groups,
+):
+    time = np.arange(0, int(duration) * sample_rate, 1)
     data = np.zeros((n_subj, n_chan, len(time)))
-
+    correlated_channel_groups = correlated_channel_groups.copy()
     n_random = n_subj - n_correlated
 
     # generate random data
     for i in range(n_random):
-        data[i] = (
-            np.random.rand(n_chan, len(time))
-        )
+        data[i] = np.random.rand(n_chan, len(time))
 
     # next generated the correlated subject data
     # starting with a base signal using the desired signal type
     base_signal = np.zeros((n_chan, len(time)))
     if signal_type == "sine":
         base_signal += signal_amp * np.sin(
-            2
-            * np.pi
-            * signal_freq
-            * time
-            / sample_rate
-            + signal_phase
+            2 * np.pi * signal_freq * time / sample_rate + signal_phase
         )
     elif signal_type == "square":
         base_signal += signal_amp * sp.signal.square(
-            2
-            * np.pi
-            * signal_freq
-            * time
-            / sample_rate
-            + signal_phase
+            2 * np.pi * signal_freq * time / sample_rate + signal_phase
         )
     elif signal_type == "sawtooth":
         base_signal += signal_amp * sp.signal.sawtooth(
-            2
-            * np.pi
-            * signal_freq
-            * time
-            / sample_rate
-            + signal_phase
+            2 * np.pi * signal_freq * time / sample_rate + signal_phase
         )
     elif signal_type == "triangle":
         base_signal += signal_amp * sp.signal.sawtooth(
-            2
-            * np.pi
-            * signal_freq
-            * time
-            / sample_rate
-            + signal_phase,
+            2 * np.pi * signal_freq * time / sample_rate + signal_phase,
             width=0.5,
         )
     elif signal_type == "random":
-        base_signal += (
-            np.random.rand(n_chan, len(time))
-            * signal_amp
-        )
+        base_signal += np.random.rand(n_chan, len(time)) * signal_amp
 
     # add noise to the base signal
-    if signal_type != "random" and signal_noise > 0.:
-        base_signal += (
-            np.random.rand(n_chan, len(time))
-            * signal_noise
-        )
+    if signal_type != "random" and signal_noise > 0.0:
+        base_signal += np.random.rand(n_chan, len(time)) * signal_noise
 
     if n_correlated > 1:
         # generate correlated data
         data[n_random] = base_signal
+        group_bases = dict()
+        chan_level = False
+        remove_groups = []
+        if len(correlated_channel_groups.keys()) > 0:
+            for group, channels in correlated_channel_groups.items():
+                if len(channels) > 1:
+                    chan_level = True
+                else:
+                    # remove the group
+                    remove_groups.append(group)
+                    st.warning(
+                        f"Group {group} has only less than two channels. It will be ignored.")
+            for group in remove_groups:
+                del correlated_channel_groups[group]
+
+        if chan_level:
+            for group, channels in correlated_channel_groups.items():
+                # turn string channels into integers, and subtract 1 to get 0-based index
+                channels = [int(c) - 1 for c in channels]
+                group_base = np.random.rand(len(time)) * signal_amp
+                # create the correlated signal between the channels
+                group_bases[group] = np.zeros((len(channels), len(time)))
+                for i, _ in enumerate(channels):
+                    group_bases[group][i, :] = group_base * correlation + np.random.rand(
+                        len(time)
+                    ) * (1 - correlation)
+
+
         for i in range(n_random + 1, n_subj):
-            # now create remaining correlated data
-            data[i] = base_signal * correlation + np.random.rand(
-                n_chan, len(time)
-            ) * (1 - correlation)
+            # now create remaining correlated data for each subject and the channel groups (if any)
+            if chan_level:
+                data[i] = np.random.rand(n_chan, len(time)) * signal_amp
+                for group, channels in correlated_channel_groups.items():
+                    # turn string channels into integers, and subtract 1 to get 0-based index
+                    channels = [int(c) - 1 for c in channels]
+                    st.write(f"assigning group {group} to channels {channels} for subject {i}")
+                    data[i][channels, :] = group_bases[group] * correlation + np.random.rand(
+                        len(channels), len(time)
+                    ) * (1 - correlation)
+            else:
+                data[i] = base_signal * correlation + np.random.rand(n_chan, len(time)) * (
+                    1 - correlation
+                )
 
     return data, time
 
@@ -314,7 +384,7 @@ def train_cca(data):
 
     gamma = 0.1
     Rw, Rb = 0, 0
-    for c,cond in data.items():
+    for c, cond in data.items():
         (
             N,
             D,
@@ -463,6 +533,7 @@ def apply_cca(X, W, fs):
 
     return ISC, ISC_persecond, ISC_bysubject, A
 
+
 # generate data based on the current settings
 data, time = generate_data(
     st.session_state.duration,
@@ -476,6 +547,7 @@ data, time = generate_data(
     st.session_state.signal_phase,
     st.session_state.signal_noise,
     st.session_state.correlation,
+    st.session_state.correlated_channel_groups,
 )
 
 
@@ -496,18 +568,31 @@ def plot_data(data, time, subject_selection, channel_selection):
     plt.tight_layout()
     return fig
 
+
 @st.cache_data
 def plot_corrmatrix(data, subject_selection):
     n_sel = len(subject_selection)
     corr = np.zeros((n_sel, n_sel))
     for i in range(n_sel):
         for j in range(n_sel):
-            corr[i, j] = np.corrcoef(data[subject_selection[i]].flatten(), data[subject_selection[j]].flatten())[0, 1]
+            corr[i, j] = np.corrcoef(
+                data[subject_selection[i]].flatten(),
+                data[subject_selection[j]].flatten(),
+            )[0, 1]
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-    sns.heatmap(corr, vmin=0.0, vmax=1.0, cmap="coolwarm", ax=ax, yticklabels=[f"S{i + 1}" for i in subject_selection], xticklabels=[f"S{i + 1}" for i in subject_selection])
-    
+    sns.heatmap(
+        corr,
+        vmin=0.0,
+        vmax=1.0,
+        cmap="coolwarm",
+        ax=ax,
+        yticklabels=[f"S{i + 1}" for i in subject_selection],
+        xticklabels=[f"S{i + 1}" for i in subject_selection],
+    )
+
     ax.set_title("Subject Correlation Matrix")
     return fig, corr
+
 
 @st.cache_data
 def plot_chann_corrmatrix(data, channel_selection):
@@ -515,10 +600,21 @@ def plot_chann_corrmatrix(data, channel_selection):
     corr = np.zeros((n_sel, n_sel))
     for i in range(n_sel):
         for j in range(n_sel):
-            corr[i, j] = np.corrcoef(data[:, channel_selection[i]].flatten(), data[:, channel_selection[j]].flatten())[0, 1]
+            corr[i, j] = np.corrcoef(
+                data[:, channel_selection[i]].flatten(),
+                data[:, channel_selection[j]].flatten(),
+            )[0, 1]
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-    sns.heatmap(corr, vmin=0.0, vmax=1.0, cmap="coolwarm", ax=ax, yticklabels=[f"Ch{i + 1}" for i in channel_selection], xticklabels=[f"Ch{i + 1}" for i in channel_selection])
-    
+    sns.heatmap(
+        corr,
+        vmin=0.0,
+        vmax=1.0,
+        cmap="coolwarm",
+        ax=ax,
+        yticklabels=[f"Ch{i + 1}" for i in channel_selection],
+        xticklabels=[f"Ch{i + 1}" for i in channel_selection],
+    )
+
     ax.set_title("Channel Correlation Matrix")
     return fig, corr
 
@@ -531,30 +627,44 @@ def plot_network_from_corr(corr, remove_self=True, shell_layout=True):
     # add weight to edges and set line width based on weight
     for i, j in G.edges:
         G[i][j]["weight"] = corr[i, j]
-    
+
     if remove_self:
         G.remove_edges_from(nx.selfloop_edges(G))
 
-    widths = nx.get_edge_attributes(G, 'weight')
+    widths = nx.get_edge_attributes(G, "weight")
     nodelist = G.nodes()
-    
+
     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
     if shell_layout:
         pos = nx.shell_layout(G, scale=10)
     else:
         pos = nx.spring_layout(G, scale=10)
-    
-    nx.draw_networkx_nodes(G, pos, nodelist=nodelist, node_color="#440022", node_size=500, alpha=0.8, ax=ax)
-    nx.draw_networkx_edges(G, pos,  alpha=0.4, edge_vmin=0., edge_vmax=1., edge_cmap=plt.cm.coolwarm, edge_color=list(widths.values()), width=[v * 15 for v in widths.values()], edgelist=widths.keys(), ax=ax)
-    nx.draw_networkx_labels(G, pos, ax=ax, font_color="white", labels={i: f"{i + 1}" for i in nodelist})
-    
+
+    nx.draw_networkx_nodes(
+        G, pos, nodelist=nodelist, node_color="#440022", node_size=500, alpha=0.8, ax=ax
+    )
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        alpha=0.4,
+        edge_vmin=0.0,
+        edge_vmax=1.0,
+        edge_cmap=plt.cm.coolwarm,
+        edge_color=list(widths.values()),
+        width=[v * 15 for v in widths.values()],
+        edgelist=widths.keys(),
+        ax=ax,
+    )
+    nx.draw_networkx_labels(
+        G, pos, ax=ax, font_color="white", labels={i: f"{i + 1}" for i in nodelist}
+    )
+
     # add colorbar
     sm = plt.cm.ScalarMappable(cmap=plt.cm.coolwarm, norm=plt.Normalize(vmin=0, vmax=1))
     sm.set_array([])
     plt.colorbar(sm, ax=ax, alpha=0.4)
     ax.set_title("Network from Correlation Matrix")
 
-    
     return fig
 
 
@@ -576,8 +686,10 @@ def plot_power(data, subject_selection, channel_selection):
     fig.supylabel("Power")
     return fig
 
+
 def format_subj(subj):
-        return f"S{subj + 1}"
+    return f"S{subj + 1}"
+
 
 def format_chan(chan):
     return f"Ch{chan + 1}"
@@ -585,13 +697,27 @@ def format_chan(chan):
 
 st.subheader("Generated Data")
 st.write(f"Data shape: {data.shape}")
-data_tab, sub_tab, chan_tab, power_tab = st.tabs(["Data", "Subject Correlation", "Channel Correlation", "Power spectrum"])
+data_tab, sub_tab, chan_tab, power_tab = st.tabs(
+    ["Data", "Subject Correlation", "Channel Correlation", "Power spectrum"]
+)
 
 # exploration of generated data
 with data_tab:
-    subject_selection = st.pills("Subjects", range(st.session_state.n_subj), format_func=format_subj, default=range(st.session_state.n_subj), selection_mode="multi")
-    channel_selection = st.pills("Channels", range(st.session_state.n_chan), format_func=format_chan, default=range(st.session_state.n_chan), selection_mode="multi")
-    
+    subject_selection = st.pills(
+        "Subjects",
+        range(st.session_state.n_subj),
+        format_func=format_subj,
+        default=range(st.session_state.n_subj),
+        selection_mode="multi",
+    )
+    channel_selection = st.pills(
+        "Channels",
+        range(st.session_state.n_chan),
+        format_func=format_chan,
+        default=range(st.session_state.n_chan),
+        selection_mode="multi",
+    )
+
     # ifig = mpld3.fig_to_html(fig)
     # components.html(ifig, height=600)
     fig = plot_data(data, time, subject_selection, channel_selection)
@@ -599,7 +725,14 @@ with data_tab:
 
 with sub_tab:
     # plot correlation matrix
-    subject_selection = st.pills("Subjects", range(st.session_state.n_subj), key="subjects_corplot", format_func=format_subj, default=range(st.session_state.n_subj), selection_mode="multi")
+    subject_selection = st.pills(
+        "Subjects",
+        range(st.session_state.n_subj),
+        key="subjects_corplot",
+        format_func=format_subj,
+        default=range(st.session_state.n_subj),
+        selection_mode="multi",
+    )
 
     fig, corr = plot_corrmatrix(data, subject_selection)
     st.pyplot(fig)
@@ -609,7 +742,14 @@ with sub_tab:
     st.pyplot(fig)
 
 with chan_tab:
-    channel_selection = st.pills("Channels", range(st.session_state.n_chan), key="channels_corplot", format_func=format_chan, default=range(st.session_state.n_chan), selection_mode="multi")
+    channel_selection = st.pills(
+        "Channels",
+        range(st.session_state.n_chan),
+        key="channels_corplot",
+        format_func=format_chan,
+        default=range(st.session_state.n_chan),
+        selection_mode="multi",
+    )
     fig, corr = plot_chann_corrmatrix(data, channel_selection)
     st.pyplot(fig)
 
@@ -617,15 +757,28 @@ with chan_tab:
     fig = plot_network_from_corr(corr, shell_layout=not spring_layout)
     st.pyplot(fig)
 
-    
     # ifig2 = mpld3.fig_to_html(fig)
     # components.html(ifig2, height=600)
 
 with power_tab:
     # plot power spectrum
-    subject_selection = st.pills("Subjects", range(st.session_state.n_subj), key="subjects_powerplot", format_func=format_subj, default=range(st.session_state.n_subj), selection_mode="multi")
+    subject_selection = st.pills(
+        "Subjects",
+        range(st.session_state.n_subj),
+        key="subjects_powerplot",
+        format_func=format_subj,
+        default=range(st.session_state.n_subj),
+        selection_mode="multi",
+    )
     n_sel = len(subject_selection)
-    channel_selection = st.pills("Channels", range(st.session_state.n_chan), key="channels_powerplot", format_func=format_chan, default=range(st.session_state.n_chan), selection_mode="multi")
+    channel_selection = st.pills(
+        "Channels",
+        range(st.session_state.n_chan),
+        key="channels_powerplot",
+        format_func=format_chan,
+        default=range(st.session_state.n_chan),
+        selection_mode="multi",
+    )
 
     fig = plot_power(data, subject_selection, channel_selection)
     st.pyplot(fig)
@@ -642,6 +795,7 @@ def get_subjs_by_cond(conditions):
         ]
     return subj_by_cond
 
+
 # prepare conditions
 @st.cache_data
 def prepare_conditions(data, conditions, included_subj):
@@ -653,6 +807,7 @@ def prepare_conditions(data, conditions, included_subj):
         if cond in included_subj and len(included_subj[cond]) > 2:
             data_dict[cond] = data[included_subj[cond]]
     return data_dict
+
 
 included_subjects = get_subjs_by_cond(st.session_state.conditions)
 
@@ -694,6 +849,7 @@ def plot_isc(isc_all):
 
     return plot1
 
+
 # plot ISC over time
 @st.cache_data
 def plot_isc_time(isc_all):
@@ -711,6 +867,7 @@ def plot_isc_time(isc_all):
     plt.tight_layout()
     return plot
 
+
 # plot spatial filter weights
 @st.cache_data
 def plot_weights(W):
@@ -718,6 +875,7 @@ def plot_weights(W):
     sns.heatmap(W, ax=ax)
     ax.set_title("Spatial filter weights")
     return fig
+
 
 isc_ready = st.session_state.W is not None and st.session_state.ISC_overall is not None
 run_label = "Run ISC" if not isc_ready else "Re-run ISC"
@@ -731,7 +889,9 @@ if st.button(run_label, key="run_isc"):
         st.session_state.isc_results[str(cond_key)] = dict(
             zip(
                 ["ISC", "ISC_persecond", "ISC_bysubject", "A"],
-                apply_cca(cond_values, st.session_state.W, st.session_state.sample_rate),
+                apply_cca(
+                    cond_values, st.session_state.W, st.session_state.sample_rate
+                ),
             )
         )
     st.write("ISC completed")
@@ -739,34 +899,37 @@ if st.button(run_label, key="run_isc"):
 # display the results
 if st.session_state.W is not None and st.session_state.ISC_overall is not None:
     # show the ISC values as a table for each component
-    df = {
-        f"C{i + 1}": [v] for i,v in enumerate(st.session_state.ISC_overall)
-
-    }
+    df = {f"C{i + 1}": [v] for i, v in enumerate(st.session_state.ISC_overall)}
     st.dataframe(df)
-    filter_weight_tab, isc_summary_tab, isc_time_tab = st.tabs(["Filter weights", "ISC summary", "ISC over time"])
+    filter_weight_tab, isc_summary_tab, isc_time_tab = st.tabs(
+        ["Filter weights", "ISC summary", "ISC over time"]
+    )
     with filter_weight_tab:
         # plot spatial filter weights
         fig = plot_weights(st.session_state.W)
         st.pyplot(fig)
 
-        w_component = st.select_slider("Component/Channel", options=range(1, len(st.session_state.ISC_overall) + 1), value=1)
+        w_component = st.select_slider(
+            "Component/Channel",
+            options=range(1, len(st.session_state.ISC_overall) + 1),
+            value=1,
+        )
         c1, c2 = st.columns(2)
         with c1:
             st.write(f"Component {w_component} weights")
             df = {
-                f"Ch{i + 1}": v for i,v in enumerate(st.session_state.W[:, w_component - 1])
+                f"Ch{i + 1}": v
+                for i, v in enumerate(st.session_state.W[:, w_component - 1])
             }
             st.dataframe(df)
 
         with c2:
             st.write(f"Channel {w_component} weights")
             df = {
-                f"Comp{i + 1}": v for i,v in enumerate(st.session_state.W[w_component - 1, :])
+                f"Comp{i + 1}": v
+                for i, v in enumerate(st.session_state.W[w_component - 1, :])
             }
             st.dataframe(df)
-
-        
 
     with isc_summary_tab:
         # plot ISC summary
