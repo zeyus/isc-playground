@@ -1,10 +1,10 @@
 import streamlit as st
 import numpy as np
-import scipy as sp
+import scipy as sp  # type: ignore
 import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.linalg import eigh
-import networkx as nx
+import seaborn as sns  # type: ignore
+from scipy.linalg import eigh  # type: ignore
+import networkx as nx  # type: ignore
 
 # from timeit import default_timer
 # for interactive plots, but it doesn't work great.
@@ -14,8 +14,9 @@ import networkx as nx
 plt.style.use("dark_background")
 
 st.title("ISC Playground")
+st.link_button("Source code", "https://github.com/zeyus/isc-playground", icon="💻")
 st.subheader("Updated 2025-02-10 16:10")
-st.link_button("Source code", "https://github.com/zeyus/isc-playground")
+st.divider()
 
 config_defaults = {
     "n_subj": 5,
@@ -34,6 +35,8 @@ config_defaults = {
     "W": None,
     "ISC_overall": None,
     "isc_results": None,
+    "sim_data": [],
+    "sim_time": None,
 }
 signal_types = ["sine", "square", "sawtooth", "triangle", "random"]
 
@@ -46,17 +49,16 @@ with st.sidebar:
     # check if all values are defaults, if not, offer a reset button
     reset = False
     for key, value in config_defaults.items():
-        if st.session_state[key] != value:
+        if isinstance(st.session_state[key], np.ndarray):
+            continue
+        elif st.session_state[key] != value:
             reset = True
             break
     if reset:
         if st.button("⚠️ Reset to default settings"):
-            for cond in st.session_state.conditions:
-                for i in range(st.session_state.n_subj):
-                    if f"subj-{i}-{cond}" in st.session_state:
-                        del st.session_state[f"subj-{i}-{cond}"]
-                    else:
-                        break
+            # delete all keys and reset to defaults
+            for key in st.session_state.keys():  # type: ignore
+                del st.session_state[key]
             for key, value in config_defaults.items():
                 st.session_state[key] = value
     with st.expander("💻 Simulation parameters", expanded=True):
@@ -254,7 +256,7 @@ with st.sidebar:
 
 
 # generate data
-@st.cache_data
+@st.cache_resource
 def generate_data(
     duration,
     n_subj,
@@ -335,7 +337,6 @@ def generate_data(
                         len(time)
                     ) * (1 - correlation)
 
-
         for i in range(n_random + 1, n_subj):
             # now create remaining correlated data for each subject and the channel groups (if any)
             if chan_level:
@@ -356,7 +357,7 @@ def generate_data(
 
 
 # from: https://github.com/ML-D00M/ISC-Inter-Subject-Correlations/blob/main/Python/ISC.py
-@st.cache_data
+@st.cache_resource
 def train_cca(data):
     """Run Correlated Component Analysis on your training data.
 
@@ -423,7 +424,7 @@ def train_cca(data):
     return W, ISC
 
 
-@st.cache_data
+@st.cache_resource
 def apply_cca(X, W, fs):
     """Applying precomputed spatial filters to your data.
 
@@ -534,24 +535,7 @@ def apply_cca(X, W, fs):
     return ISC, ISC_persecond, ISC_bysubject, A
 
 
-# generate data based on the current settings
-data, time = generate_data(
-    st.session_state.duration,
-    st.session_state.n_subj,
-    st.session_state.n_chan,
-    st.session_state.sample_rate,
-    st.session_state.n_correlated,
-    st.session_state.signal_type,
-    st.session_state.signal_freq,
-    st.session_state.signal_amp,
-    st.session_state.signal_phase,
-    st.session_state.signal_noise,
-    st.session_state.correlation,
-    st.session_state.correlated_channel_groups,
-)
-
-
-@st.cache_data
+@st.cache_resource
 def plot_data(data, time, subject_selection, channel_selection):
     n_sel = len(subject_selection)
     fig, ax = plt.subplots(n_sel, figsize=(10, 10))
@@ -569,7 +553,7 @@ def plot_data(data, time, subject_selection, channel_selection):
     return fig
 
 
-@st.cache_data
+@st.cache_resource
 def plot_corrmatrix(data, subject_selection):
     n_sel = len(subject_selection)
     corr = np.zeros((n_sel, n_sel))
@@ -594,7 +578,7 @@ def plot_corrmatrix(data, subject_selection):
     return fig, corr
 
 
-@st.cache_data
+@st.cache_resource
 def plot_chann_corrmatrix(data, channel_selection):
     n_sel = len(channel_selection)
     corr = np.zeros((n_sel, n_sel))
@@ -619,7 +603,7 @@ def plot_chann_corrmatrix(data, channel_selection):
     return fig, corr
 
 
-@st.cache_data
+@st.cache_resource
 def plot_network_from_corr(corr, remove_self=True, shell_layout=True):
     # generate a network graph from the correlation matrix
     G = nx.from_numpy_array(corr)
@@ -668,7 +652,7 @@ def plot_network_from_corr(corr, remove_self=True, shell_layout=True):
     return fig
 
 
-@st.cache_data
+@st.cache_resource
 def plot_power(data, subject_selection, channel_selection):
     fig, ax = plt.subplots(n_sel, figsize=(10, 10))
     for i in range(n_sel):
@@ -694,94 +678,118 @@ def format_subj(subj):
 def format_chan(chan):
     return f"Ch{chan + 1}"
 
-
+data = st.session_state.sim_data
+time = st.session_state.sim_time
 st.subheader("Generated Data")
-st.write(f"Data shape: {data.shape}")
-data_tab, sub_tab, chan_tab, power_tab = st.tabs(
-    ["Data", "Subject Correlation", "Channel Correlation", "Power spectrum"]
-)
 
-# exploration of generated data
-with data_tab:
-    subject_selection = st.pills(
-        "Subjects",
-        range(st.session_state.n_subj),
-        format_func=format_subj,
-        default=range(st.session_state.n_subj),
-        selection_mode="multi",
+button_label = "Generate data" if data is None else "Re-generate data"
+if len(data) == 0:
+    st.write("No data generated yet, click the button below to generate data.")
+if st.button(button_label, type="primary", key="generate_data"):
+    # generate data based on the current settings
+    data, time = generate_data(
+        st.session_state.duration,
+        st.session_state.n_subj,
+        st.session_state.n_chan,
+        st.session_state.sample_rate,
+        st.session_state.n_correlated,
+        st.session_state.signal_type,
+        st.session_state.signal_freq,
+        st.session_state.signal_amp,
+        st.session_state.signal_phase,
+        st.session_state.signal_noise,
+        st.session_state.correlation,
+        st.session_state.correlated_channel_groups,
     )
-    channel_selection = st.pills(
-        "Channels",
-        range(st.session_state.n_chan),
-        format_func=format_chan,
-        default=range(st.session_state.n_chan),
-        selection_mode="multi",
-    )
+    st.session_state.sim_data = data
+    st.session_state.sim_time = time
 
-    # ifig = mpld3.fig_to_html(fig)
-    # components.html(ifig, height=600)
-    fig = plot_data(data, time, subject_selection, channel_selection)
-    st.pyplot(fig)
-
-with sub_tab:
-    # plot correlation matrix
-    subject_selection = st.pills(
-        "Subjects",
-        range(st.session_state.n_subj),
-        key="subjects_corplot",
-        format_func=format_subj,
-        default=range(st.session_state.n_subj),
-        selection_mode="multi",
+if len(data) > 0 and time is not None:
+    data_tab, sub_tab, chan_tab, power_tab = st.tabs(
+        ["Data", "Subject Correlation", "Channel Correlation", "Power spectrum"]
     )
 
-    fig, corr = plot_corrmatrix(data, subject_selection)
-    st.pyplot(fig)
+    # exploration of generated data
+    with data_tab:
+        subject_selection = st.pills(
+            "Subjects",
+            range(st.session_state.n_subj),
+            format_func=format_subj,
+            default=range(st.session_state.n_subj),
+            selection_mode="multi",
+        )
+        channel_selection = st.pills(
+            "Channels",
+            range(st.session_state.n_chan),
+            format_func=format_chan,
+            default=range(st.session_state.n_chan),
+            selection_mode="multi",
+        )
 
-    spring_layout = st.toggle("Spring layout", key="spring_subj", value=False)
-    fig = plot_network_from_corr(corr, shell_layout=not spring_layout)
-    st.pyplot(fig)
+        # ifig = mpld3.fig_to_html(fig)
+        # components.html(ifig, height=600)
+        fig = plot_data(data, time, subject_selection, channel_selection)
+        st.pyplot(fig)
 
-with chan_tab:
-    channel_selection = st.pills(
-        "Channels",
-        range(st.session_state.n_chan),
-        key="channels_corplot",
-        format_func=format_chan,
-        default=range(st.session_state.n_chan),
-        selection_mode="multi",
-    )
-    fig, corr = plot_chann_corrmatrix(data, channel_selection)
-    st.pyplot(fig)
+    with sub_tab:
+        # plot correlation matrix
+        subject_selection = st.pills(
+            "Subjects",
+            range(st.session_state.n_subj),
+            key="subjects_corplot",
+            format_func=format_subj,
+            default=range(st.session_state.n_subj),
+            selection_mode="multi",
+        )
 
-    spring_layout = st.toggle("Spring layout", key="spring_chan", value=False)
-    fig = plot_network_from_corr(corr, shell_layout=not spring_layout)
-    st.pyplot(fig)
+        fig, corr = plot_corrmatrix(data, subject_selection)
+        st.pyplot(fig)
 
-    # ifig2 = mpld3.fig_to_html(fig)
-    # components.html(ifig2, height=600)
+        spring_layout = st.toggle("Spring layout", key="spring_subj", value=False)
+        fig = plot_network_from_corr(corr, shell_layout=not spring_layout)
+        st.pyplot(fig)
 
-with power_tab:
-    # plot power spectrum
-    subject_selection = st.pills(
-        "Subjects",
-        range(st.session_state.n_subj),
-        key="subjects_powerplot",
-        format_func=format_subj,
-        default=range(st.session_state.n_subj),
-        selection_mode="multi",
-    )
-    n_sel = len(subject_selection)
-    channel_selection = st.pills(
-        "Channels",
-        range(st.session_state.n_chan),
-        key="channels_powerplot",
-        format_func=format_chan,
-        default=range(st.session_state.n_chan),
-        selection_mode="multi",
-    )
+    with chan_tab:
+        channel_selection = st.pills(
+            "Channels",
+            range(st.session_state.n_chan),
+            key="channels_corplot",
+            format_func=format_chan,
+            default=range(st.session_state.n_chan),
+            selection_mode="multi",
+        )
+        fig, corr = plot_chann_corrmatrix(data, channel_selection)
+        st.pyplot(fig)
 
-    fig = plot_power(data, subject_selection, channel_selection)
-    st.pyplot(fig)
+        spring_layout = st.toggle("Spring layout", key="spring_chan", value=False)
+        fig = plot_network_from_corr(corr, shell_layout=not spring_layout)
+        st.pyplot(fig)
+
+        # ifig2 = mpld3.fig_to_html(fig)
+        # components.html(ifig2, height=600)
+
+    with power_tab:
+        # plot power spectrum
+        subject_selection = st.pills(
+            "Subjects",
+            range(st.session_state.n_subj),
+            key="subjects_powerplot",
+            format_func=format_subj,
+            default=range(st.session_state.n_subj),
+            selection_mode="multi",
+        )
+        n_sel = len(subject_selection)
+        channel_selection = st.pills(
+            "Channels",
+            range(st.session_state.n_chan),
+            key="channels_powerplot",
+            format_func=format_chan,
+            default=range(st.session_state.n_chan),
+            selection_mode="multi",
+        )
+
+        fig = plot_power(data, subject_selection, channel_selection)
+        st.pyplot(fig)
 
 
 # helper to get grouped subjects
@@ -797,7 +805,7 @@ def get_subjs_by_cond(conditions):
 
 
 # prepare conditions
-@st.cache_data
+@st.cache_resource
 def prepare_conditions(data, conditions, included_subj):
     data_dict = dict()
     for cond in conditions:
@@ -809,15 +817,7 @@ def prepare_conditions(data, conditions, included_subj):
     return data_dict
 
 
-included_subjects = get_subjs_by_cond(st.session_state.conditions)
-
-data_dict = prepare_conditions(data, st.session_state.conditions, included_subjects)
-
-
-st.subheader("Inter-Subject Correlation Analysis")
-
-
-@st.cache_data
+@st.cache_resource
 def plot_isc(isc_all):
     # plot ISC as a bar chart
     plot1 = plt.figure()
@@ -851,7 +851,7 @@ def plot_isc(isc_all):
 
 
 # plot ISC over time
-@st.cache_data
+@st.cache_resource
 def plot_isc_time(isc_all):
     plot = plt.figure()
     # plot ISC_persecond
@@ -869,7 +869,7 @@ def plot_isc_time(isc_all):
 
 
 # plot spatial filter weights
-@st.cache_data
+@st.cache_resource
 def plot_weights(W):
     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
     sns.heatmap(W, ax=ax)
@@ -877,66 +877,70 @@ def plot_weights(W):
     return fig
 
 
-isc_ready = st.session_state.W is not None and st.session_state.ISC_overall is not None
-run_label = "Run ISC" if not isc_ready else "Re-run ISC"
-if st.button(run_label, key="run_isc"):
-    # get the spatial filter weights and ISC values
-    [st.session_state.W, st.session_state.ISC_overall] = train_cca(data_dict)
-    st.session_state.isc_results = dict()
+if data is not None:
+    included_subjects = get_subjs_by_cond(st.session_state.conditions)
+    data_dict = prepare_conditions(data, st.session_state.conditions, included_subjects)
+    st.subheader("Inter-Subject Correlation Analysis")
+    isc_ready = st.session_state.W is not None and st.session_state.ISC_overall is not None
+    run_label = "Run ISC" if not isc_ready else "Re-run ISC"
+    if st.button(run_label, key="run_isc", type="primary"):
+        # get the spatial filter weights and ISC values
+        [st.session_state.W, st.session_state.ISC_overall] = train_cca(data_dict)
+        st.session_state.isc_results = dict()
 
-    # apply the spatial filter weights to the data by condition
-    for cond_key, cond_values in data_dict.items():
-        st.session_state.isc_results[str(cond_key)] = dict(
-            zip(
-                ["ISC", "ISC_persecond", "ISC_bysubject", "A"],
-                apply_cca(
-                    cond_values, st.session_state.W, st.session_state.sample_rate
-                ),
+        # apply the spatial filter weights to the data by condition
+        for cond_key, cond_values in data_dict.items():
+            st.session_state.isc_results[str(cond_key)] = dict(
+                zip(
+                    ["ISC", "ISC_persecond", "ISC_bysubject", "A"],
+                    apply_cca(
+                        cond_values, st.session_state.W, st.session_state.sample_rate
+                    ),
+                )
             )
+        st.write("ISC completed")
+
+    # display the results
+    if st.session_state.W is not None and st.session_state.ISC_overall is not None:
+        # show the ISC values as a table for each component
+        df = {f"C{i + 1}": [v] for i, v in enumerate(st.session_state.ISC_overall)}
+        st.dataframe(df)
+        filter_weight_tab, isc_summary_tab, isc_time_tab = st.tabs(
+            ["Filter weights", "ISC summary", "ISC over time"]
         )
-    st.write("ISC completed")
+        with filter_weight_tab:
+            # plot spatial filter weights
+            fig = plot_weights(st.session_state.W)
+            st.pyplot(fig)
 
-# display the results
-if st.session_state.W is not None and st.session_state.ISC_overall is not None:
-    # show the ISC values as a table for each component
-    df = {f"C{i + 1}": [v] for i, v in enumerate(st.session_state.ISC_overall)}
-    st.dataframe(df)
-    filter_weight_tab, isc_summary_tab, isc_time_tab = st.tabs(
-        ["Filter weights", "ISC summary", "ISC over time"]
-    )
-    with filter_weight_tab:
-        # plot spatial filter weights
-        fig = plot_weights(st.session_state.W)
-        st.pyplot(fig)
+            w_component = st.select_slider(
+                "Component/Channel",
+                options=range(1, len(st.session_state.ISC_overall) + 1),
+                value=1,
+            )
+            c1, c2 = st.columns(2)
+            with c1:
+                st.write(f"Component {w_component} weights")
+                df = {
+                    f"Ch{i + 1}": v
+                    for i, v in enumerate(st.session_state.W[:, w_component - 1])
+                }
+                st.dataframe(df)
 
-        w_component = st.select_slider(
-            "Component/Channel",
-            options=range(1, len(st.session_state.ISC_overall) + 1),
-            value=1,
-        )
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write(f"Component {w_component} weights")
-            df = {
-                f"Ch{i + 1}": v
-                for i, v in enumerate(st.session_state.W[:, w_component - 1])
-            }
-            st.dataframe(df)
+            with c2:
+                st.write(f"Channel {w_component} weights")
+                df = {
+                    f"Comp{i + 1}": v
+                    for i, v in enumerate(st.session_state.W[w_component - 1, :])
+                }
+                st.dataframe(df)
 
-        with c2:
-            st.write(f"Channel {w_component} weights")
-            df = {
-                f"Comp{i + 1}": v
-                for i, v in enumerate(st.session_state.W[w_component - 1, :])
-            }
-            st.dataframe(df)
+        with isc_summary_tab:
+            # plot ISC summary
+            fig = plot_isc(st.session_state.isc_results)
+            st.pyplot(fig)
 
-    with isc_summary_tab:
-        # plot ISC summary
-        fig = plot_isc(st.session_state.isc_results)
-        st.pyplot(fig)
-
-    with isc_time_tab:
-        # plot ISC over time
-        fig = plot_isc_time(st.session_state.isc_results)
-        st.pyplot(fig)
+        with isc_time_tab:
+            # plot ISC over time
+            fig = plot_isc_time(st.session_state.isc_results)
+            st.pyplot(fig)
